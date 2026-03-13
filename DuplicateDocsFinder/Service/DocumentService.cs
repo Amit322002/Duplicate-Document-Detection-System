@@ -111,7 +111,14 @@ namespace DuplicateDocsFinder.Service
                 }
 
                 var basePath = _configuration["DocumentSettings:StoragePath"];
-                var userFolder = Path.Combine(basePath, dto.UserId.ToString());
+
+                var root = Directory.GetCurrentDirectory();
+                var userFolder = Path.Combine(root, basePath, dto.UserId.ToString());
+
+                if (!Directory.Exists(userFolder))
+                {
+                    Directory.CreateDirectory(userFolder);
+                }
 
                 if (!Directory.Exists(userFolder))
                     Directory.CreateDirectory(userFolder);
