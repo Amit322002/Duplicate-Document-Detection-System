@@ -120,9 +120,6 @@ namespace DuplicateDocsFinder.Service
                     Directory.CreateDirectory(userFolder);
                 }
 
-                if (!Directory.Exists(userFolder))
-                    Directory.CreateDirectory(userFolder);
-
                 var extension = Path.GetExtension(dto.File.FileName).ToLower();
 
                 var fileName = Guid.NewGuid() + extension;
@@ -253,7 +250,7 @@ namespace DuplicateDocsFinder.Service
             if (extension == ".pdf")
                 return ConvertPdfFirstPageToImage(fileBytes);
 
-            if (extension == ".docx")
+            if (extension == ".docx" || extension == ".doc")
                 return ConvertDocxToImage(fileBytes);
 
             return null;

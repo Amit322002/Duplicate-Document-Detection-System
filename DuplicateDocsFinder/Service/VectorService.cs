@@ -1,12 +1,11 @@
-﻿using DuplicateDocsFinder.Dto;
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace DuplicateDocsFinder.Service
 {
     public interface IVectorService
     {
         Task InsertVectorAsync(string id, float[] vector);
-
         Task<List<Guid>> SearchSimilarAsync(float[] vector);
     }
 
@@ -15,89 +14,94 @@ namespace DuplicateDocsFinder.Service
         private readonly HttpClient _httpClient;
         private readonly string _qdrantUrl;
         private readonly string _collection;
+        private readonly string _apiKey;
 
         public VectorService(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
+
             _qdrantUrl = configuration["Qdrant:Url"];
             _collection = configuration["Qdrant:Collection"];
+            _apiKey = configuration["Qdrant:ApiKey"];
 
-            var apiKey = configuration["Qdrant:ApiKey"];
+            _httpClient.DefaultRequestHeaders.Add("api-key", _apiKey);
+        }
 
-            if (!string.IsNullOrEmpty(apiKey))
+        private async Task EnsureCollectionExistsAsync()
+        {
+            var checkResponse = await _httpClient.GetAsync($"{_qdrantUrl}/collections/{_collection}");
+
+            if (!checkResponse.IsSuccessStatusCode)
             {
-                _httpClient.DefaultRequestHeaders.Add("api-key", apiKey);
+                var body = new
+                {
+                    vectors = new
+                    {
+                        size = 1024,
+                        distance = "Cosine"
+                    }
+                };
+
+                await _httpClient.PutAsJsonAsync($"{_qdrantUrl}/collections/{_collection}", body);
             }
         }
 
         public async Task InsertVectorAsync(string id, float[] vector)
         {
-            try
+            await EnsureCollectionExistsAsync();
+
+            var payload = new
             {
-                var body = new
+                points = new[]
                 {
-                    points = new[]
+                    new
                     {
-                        new
-                        {
-                            id = id,
-                            vector = vector
-                        }
+                        id = id,
+                        vector = vector
                     }
-                };
+                }
+            };
 
-                var url = $"{_qdrantUrl}/collections/{_collection}/points";
-
-                await _httpClient.PutAsJsonAsync(url, body);
-            }
-            catch
-            {
-                // intentionally ignored
-            }
+            await _httpClient.PutAsJsonAsync(
+                $"{_qdrantUrl}/collections/{_collection}/points",
+                payload
+            );
         }
 
         public async Task<List<Guid>> SearchSimilarAsync(float[] vector)
         {
-            try
+            await EnsureCollectionExistsAsync();
+
+            var body = new
             {
-                var body = new
-                {
-                    vector = vector,
-                    limit = 20
-                };
+                vector = vector,
+                limit = 20
+            };
 
-                var url = $"{_qdrantUrl}/collections/{_collection}/points/search";
+            var response = await _httpClient.PostAsJsonAsync(
+                $"{_qdrantUrl}/collections/{_collection}/points/search",
+                body
+            );
 
-                var response = await _httpClient.PostAsJsonAsync(url, body);
-
-                if (!response.IsSuccessStatusCode)
-                    return new List<Guid>();
-
-                var result = await response.Content.ReadFromJsonAsync<QdrantResponse>();
-
-                if (result?.result == null)
-                    return new List<Guid>();
-
-                return result.result
-                    .Where(x => !string.IsNullOrEmpty(x.id))
-                    .Select(x => Guid.Parse(x.id))
-                    .ToList();
-            }
-            catch
-            {
+            if (!response.IsSuccessStatusCode)
                 return new List<Guid>();
+
+            var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+            var results = new List<Guid>();
+
+            if (json.TryGetProperty("result", out var resultArray))
+            {
+                foreach (var item in resultArray.EnumerateArray())
+                {
+                    var id = item.GetProperty("id").GetString();
+
+                    if (Guid.TryParse(id, out var guid))
+                        results.Add(guid);
+                }
             }
+
+            return results;
         }
-    }
-
-    public class QdrantResponse
-    {
-        public List<QdrantPoint> result { get; set; }
-    }
-
-    public class QdrantPoint
-    {
-        public string id { get; set; }
-        public float score { get; set; }
     }
 }
