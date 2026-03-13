@@ -21,6 +21,13 @@ namespace DuplicateDocsFinder.Service
             _httpClient = httpClient;
             _qdrantUrl = configuration["Qdrant:Url"];
             _collection = configuration["Qdrant:Collection"];
+
+            var apiKey = configuration["Qdrant:ApiKey"];
+
+            if (!string.IsNullOrEmpty(apiKey))
+            {
+                _httpClient.DefaultRequestHeaders.Add("api-key", apiKey);
+            }
         }
 
         public async Task InsertVectorAsync(string id, float[] vector)
