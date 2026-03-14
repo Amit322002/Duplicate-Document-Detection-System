@@ -2,9 +2,13 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 COPY . .
-# Restore with ubuntu.22.04-x64 RID so the correct native OpenCvSharpExtern.so is resolved
-RUN dotnet restore -r ubuntu.22.04-x64
-RUN dotnet publish -c Release -r ubuntu.22.04-x64 --self-contained false -o /app/publish
+RUN dotnet restore
+RUN dotnet publish -c Release -r linux-x64 --self-contained false -o /app/publish
+
+# .NET 8 dropped ubuntu.22.04-x64 as a valid RID, so the NuGet runtime package's native .so
+# is not auto-copied during publish. We manually copy it from the NuGet package cache.
+RUN find /root/.nuget/packages/opencvsharp4.official.runtime.ubuntu.22.04-x64 -name "*.so" \
+    -exec cp {} /app/publish/ \;
 
 # Use Ubuntu 22.04 to match OpenCvSharp4.official.runtime.ubuntu.22.04-x64 native libs
 FROM ubuntu:22.04
