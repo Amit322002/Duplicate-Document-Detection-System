@@ -143,13 +143,13 @@ namespace DuplicateDocsFinder.Service
                     Message = "Document uploaded successfully"
                 };
             }
-            catch
+            catch (Exception ex)
             {
                 return new ServiceResult<string>
                 {
                     Success = false,
                     StatusCode = 500,
-                    Message = "An error occurred while uploading the document"
+                    Message = ex.ToString()
                 };
             }
         }
