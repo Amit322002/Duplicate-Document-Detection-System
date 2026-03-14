@@ -1,4 +1,6 @@
-﻿using DocumentFormat.OpenXml.Packaging;
+﻿using Docnet.Core;
+using Docnet.Core.Models;
+using DocumentFormat.OpenXml.Packaging;
 using DuplicateDocsFinder.Data;
 using DuplicateDocsFinder.Dto;
 using DuplicateDocsFinder.Entity;
@@ -20,17 +22,20 @@ namespace DuplicateDocsFinder.Service
         private readonly IConfiguration _configuration;
         private readonly VectorService _vectorService;
         private readonly EmbeddingService _embeddingService;
+        private readonly SupabaseStorageService _storageService;
 
         public DocumentService(
             AppDbContext context,
             IConfiguration configuration,
             VectorService vectorService,
-            EmbeddingService embeddingService)
+            EmbeddingService embeddingService,
+            SupabaseStorageService storageService)
         {
             _context = context;
             _configuration = configuration;
             _vectorService = vectorService;
             _embeddingService = embeddingService;
+            _storageService=storageService;
         }
 
         public async Task<ServiceResult<string>> UploadDocumentAsync(UploadDocumentDto dto)
@@ -110,29 +115,17 @@ namespace DuplicateDocsFinder.Service
                     }
                 }
 
-                var basePath = _configuration["DocumentSettings:StoragePath"];
+                var extension = Path.GetExtension(dto.File.FileName);
+                var fileName = $"{Guid.NewGuid()}{extension}";
 
-                var root = Directory.GetCurrentDirectory();
-                var userFolder = Path.Combine(root, basePath, dto.UserId.ToString());
-
-                if (!Directory.Exists(userFolder))
-                {
-                    Directory.CreateDirectory(userFolder);
-                }
-
-                var extension = Path.GetExtension(dto.File.FileName).ToLower();
-
-                var fileName = Guid.NewGuid() + extension;
-                var filePath = Path.Combine(userFolder, fileName);
-
-                await File.WriteAllBytesAsync(filePath, fileBytes);
+                var fileUrl = await _storageService.UploadFileAsync(fileBytes, fileName);
 
                 var document = new Document
                 {
                     Id = Guid.NewGuid(),
                     UserId = dto.UserId,
                     FileName = fileName,
-                    FilePath = filePath,
+                    FilePath = fileUrl,
                     FileHash = fileHash,
                     CreatedOn = DateTime.UtcNow
                 };
@@ -208,17 +201,23 @@ namespace DuplicateDocsFinder.Service
 
         private byte[] ConvertPdfFirstPageToImage(byte[] pdfBytes)
         {
-            using var stream = new MemoryStream(pdfBytes);
+            using var docReader = DocLib.Instance.GetDocReader(pdfBytes, new PageDimensions(1000, 1000));
+            using var pageReader = docReader.GetPageReader(0);
 
-            var pdf = PdfiumViewer.PdfDocument.Load(stream);
+            var rawBytes = pageReader.GetImage();
 
-            var image = pdf.Render(0, 300, 300, true);
+            int width = pageReader.GetPageWidth();
+            int height = pageReader.GetPageHeight();
 
-            using var ms = new MemoryStream();
+            var mat = new Mat(height, width, MatType.CV_8UC4);
 
-            image.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            System.Runtime.InteropServices.Marshal.Copy(rawBytes, 0, mat.Data, rawBytes.Length);
 
-            return ms.ToArray();
+            Cv2.CvtColor(mat, mat, ColorConversionCodes.BGRA2BGR);
+
+            Cv2.ImEncode(".png", mat, out var encoded);
+
+            return encoded.ToArray();
         }
 
         private byte[] ConvertDocxToImage(byte[] docxBytes)
@@ -255,5 +254,7 @@ namespace DuplicateDocsFinder.Service
 
             return null;
         }
+
+
     }
 }
