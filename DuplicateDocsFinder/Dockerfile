@@ -5,7 +5,7 @@ COPY . .
 RUN dotnet restore
 RUN dotnet publish -c Release -r linux-x64 --self-contained false -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy
 WORKDIR /app
 
 # Install OpenCV dependencies
@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     libstdc++6 \
     libc6 \
+    libopencv-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/publish .
