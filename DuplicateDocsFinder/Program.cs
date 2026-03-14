@@ -42,14 +42,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-/* Production deployment port (Render / Docker) */
-var port = Environment.GetEnvironmentVariable("PORT");
+/* Render / Docker port binding */
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
 
-if (!string.IsNullOrEmpty(port))
-{
-    app.Run($"http://0.0.0.0:{port}");
-}
-else
-{
-    app.Run(); // local run
-}
+app.Run($"http://0.0.0.0:{port}");
