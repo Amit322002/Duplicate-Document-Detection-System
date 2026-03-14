@@ -125,7 +125,7 @@ namespace DuplicateDocsFinder.Service
                     Id = Guid.NewGuid(),
                     UserId = dto.UserId,
                     FileName = fileName,
-                    FilePath = fil,
+                    FilePath = fileUrl,
                     FileHash = fileHash,
                     CreatedOn = DateTime.UtcNow
                 };
