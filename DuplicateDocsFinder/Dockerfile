@@ -2,8 +2,9 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 COPY . .
-RUN dotnet restore
-RUN dotnet publish -c Release -r linux-x64 --self-contained false -o /app/publish
+# Restore with ubuntu.22.04-x64 RID so the correct native OpenCvSharpExtern.so is resolved
+RUN dotnet restore -r ubuntu.22.04-x64
+RUN dotnet publish -c Release -r ubuntu.22.04-x64 --self-contained false -o /app/publish
 
 # Use Ubuntu 22.04 to match OpenCvSharp4.official.runtime.ubuntu.22.04-x64 native libs
 FROM ubuntu:22.04
@@ -42,6 +43,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/publish .
+
+# Ensure the runtime can find OpenCvSharpExtern.so in /app
+ENV LD_LIBRARY_PATH=/app:$LD_LIBRARY_PATH
 
 EXPOSE 10000
 ENTRYPOINT ["dotnet", "DuplicateDocsFinder.dll"]
