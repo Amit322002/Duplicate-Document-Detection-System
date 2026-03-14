@@ -125,7 +125,7 @@ namespace DuplicateDocsFinder.Service
                     Id = Guid.NewGuid(),
                     UserId = dto.UserId,
                     FileName = fileName,
-                    FilePath = fileUrl,
+                    FilePath = fil,
                     FileHash = fileHash,
                     CreatedOn = DateTime.UtcNow
                 };
@@ -143,13 +143,13 @@ namespace DuplicateDocsFinder.Service
                     Message = "Document uploaded successfully"
                 };
             }
-            catch (Exception ex)
+            catch
             {
                 return new ServiceResult<string>
                 {
                     Success = false,
                     StatusCode = 500,
-                    Message = ex.ToString()
+                    Message = "An error occurred while uploading the document"
                 };
             }
         }
